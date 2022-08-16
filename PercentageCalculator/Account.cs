@@ -4,23 +4,23 @@ namespace PercentageCalculator
 {
     internal class Account
     {
-        public Account()
+        public Account(string path, uint startingCL)
         {
-            Transactions = GetAllTransactions();
-            FirstDate = Transactions.First().TransactionTime.Value.Date;
-            LastDate = Transactions.Last().TransactionTime.Value.Date;
-            MaxDebts = getMaxDebts();
+            StartingCreditLimit = startingCL;
+            Transactions = GetAllTransactions(path);
+            BankingDays = GetBankingDays();
         }
-        public uint CreditLimit { get; set; } = 10_000;
-        public Dictionary<DateTime, decimal> MaxDebts { get; set; }
+        public uint StartingCreditLimit { get; set; }
         public List<Transaction> Transactions { get; set; }
-        public DateTime FirstDate { get; set; }
-        public DateTime LastDate { get; set; }
-        private List<Transaction> GetAllTransactions()
+        public List<BankingDay> BankingDays { get; set; }
+        public List<BankingMonth> BankingMonths { get; set; }
+        public GracePeriod GracePeriod { get; set; }
+
+        private List<Transaction> GetAllTransactions(string path)
         {
 
             var transactions = new List<Transaction>();
-            var book = WorkBook.Load(@"E:\Download\Качанов_Ярослав_Олександрович_виписка_з_2022-01-01T000000.000_по_2022-08-08T235959.999.xlsx");
+            var book = WorkBook.Load(path);
             string[] header = Array.ConvertAll(book.WorkSheets[0].Rows[0].ToArray(), x => x.ToString());
             var data = book.WorkSheets.First().Rows.Skip(1);
 
@@ -29,46 +29,61 @@ namespace PercentageCalculator
 
             foreach (var row in data)
                 transactions.Add(new Transaction(row.ToArray()));
+            transactions = transactions.OrderBy(t => t.TransactionTime).ToList();
+
+            transactions[0].CreditLimit = StartingCreditLimit;
+            for (int i = 1; i < transactions.Count; i++)
+            {
+                int difference = (int)(transactions[i - 1].Balance + transactions[i].Amount - transactions[i].Balance);
+                transactions[i].CreditLimit = (uint)(transactions[i - 1].CreditLimit - difference);
+            }
 
             return transactions.OrderBy(t => t.TransactionTime).ToList();
         }
 
-        private Dictionary<DateTime, decimal> getMaxDebts()
+        private List<BankingDay> GetBankingDays()
         {
-            Dictionary<DateTime, decimal> maxDebts = new Dictionary<DateTime, decimal>();
+            var days = new List<BankingDay>();
+            DateTime first = Transactions.First().TransactionTime.Value.Date;
+            DateTime last = Transactions.Last().TransactionTime.Value.Date;
 
-            DateTime date = FirstDate;
-            decimal minimumBalance = Transactions
-                    .Where(t => t.TransactionTime.Value.Date == date)
-                    .MinBy(t => t.Balance).Balance;
-            decimal dayBalance = Transactions
-                        .Where(t => t.TransactionTime.Value.Date == date)
-                        .Last().Balance;
-
-            while (date <= LastDate)
+            for(DateTime day = first; day <= last; day = day.AddDays(1))
             {
-                if (Transactions.Any(Transaction => Transaction.TransactionTime.Value.Date == date))
+                var bankDay = new BankingDay();
+                bankDay.Day = day;
+                bankDay.Credit = Transactions
+                    .Where(t => t.TransactionTime.Value.Date == day && t.Amount > 0)
+                    .Sum(t => t.Amount);
+                bankDay.Debit = Transactions
+                    .Where(t => t.TransactionTime.Value.Date == day && t.Amount < 0)
+                    .Sum(t => t.Amount);
+                if (Transactions.Where(t => t.TransactionTime.Value.Date == day).Any())
                 {
-                    minimumBalance = Transactions
-                        .Where(t => t.TransactionTime.Value.Date == date)
+                    decimal minbal = Transactions
+                        .Where(t => t.TransactionTime.Value.Date == day)
                         .MinBy(t => t.Balance).Balance;
+                    if (days.Any())
+                    {
+                        bankDay.MinimumBalance = minbal < days.Last().EndDayBalance ? minbal : days.Last().EndDayBalance;
+                    }
+                    else
+                    {
+                        bankDay.MinimumBalance = minbal;
+                    }
 
-                    if (minimumBalance > dayBalance)
-                        minimumBalance = dayBalance;
-
-                    dayBalance = Transactions
-                        .Where(t => t.TransactionTime.Value.Date == date)
-                        .Last().Balance;
+                    bankDay.EndDayBalance = Transactions
+                        .Where(t => t.TransactionTime.Value.Date == day)
+                        .MaxBy(t => t.TransactionTime).Balance;
                 }
                 else
                 {
-                    minimumBalance = dayBalance;
+                    bankDay.MinimumBalance = days.Last().EndDayBalance;
+                    bankDay.EndDayBalance = days.Last().EndDayBalance;
                 }
-                maxDebts.Add(date, minimumBalance);
-                date = date.AddDays(1);
+                days.Add(bankDay);
             }
 
-            return maxDebts;
+            return days;
         }
 
         private static string[] headers =

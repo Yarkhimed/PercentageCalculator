@@ -30,6 +30,7 @@ namespace PercentageCalculator
         public decimal Fee { get; set; }
         public decimal Cashback { get; set; }
         public decimal Balance { get; set; }
+        public uint CreditLimit { get; set; }
 
         public override string ToString()
         {
