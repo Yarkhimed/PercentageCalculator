@@ -10,23 +10,7 @@ namespace PercentageCalculator
             Console.InputEncoding = System.Text.Encoding.Unicode;
             Console.OutputEncoding = System.Text.Encoding.Unicode;
 
-            testAcc();
-        }
-        static void test()
-        {
-            var list = new List<int>();
-            for (int i = 1; i < 10; i++)
-                list.Add(i * 2);
-            int? a;
-            try
-            {
-                a = list.Where(i => i % 2 != 0).First();
-            }
-            catch (InvalidOperationException)
-            {
-                a = null;
-            }
-            Console.WriteLine(a.ToString());
+            start();
         }
         static void testAcc()
         {
