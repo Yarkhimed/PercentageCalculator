@@ -9,7 +9,8 @@ namespace PercentageCalculator
         {
             Console.InputEncoding = System.Text.Encoding.Unicode;
             Console.OutputEncoding = System.Text.Encoding.Unicode;
-
+            // TO DO PODTERET JEPPU
+            Console.WriteLine("test");
             start();
         }
         static void testAcc()
